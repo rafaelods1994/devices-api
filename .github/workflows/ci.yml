@@ -1,0 +1,142 @@
+name: CI
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      # 1. Checkout (full history for correct commit info)
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      # 2. JDK 21
+      - name: Set up JDK 21
+        uses: actions/setup-java@v4
+        with:
+          java-version: '21'
+          distribution: 'temurin'
+
+      # 3. Gradle wrapper permission
+      - name: Grant execute permission for Gradle
+        run: chmod +x gradlew
+
+      # 4. Run tests + PIT (JaCoCo XML generated via coverage.gradle)
+      - name: Run all tests and PIT
+        run: ./gradlew clean test pitest
+
+      # 5. Ensure docs folder exists
+      - name: Ensure docs folder exists
+        run: mkdir -p docs
+
+      # 6. Extract mutation metrics
+      - name: Extract mutation metrics
+        id: mutation
+        run: |
+          REPORT=$(find build/reports/pitest -name "mutations.xml" | head -n1 || true)
+          if [ -z "$REPORT" ]; then
+            echo "score=0%" >> $GITHUB_OUTPUT
+            echo "badge_color=red" >> $GITHUB_OUTPUT
+            exit 0
+          fi
+          TOTAL=$(tr -d '\r' < "$REPORT" | grep -F -c "<mutation " || echo 0)
+          KILLED=$(tr -d '\r' < "$REPORT" | grep -F -c "detected='true'" || echo 0)
+          if [ "$TOTAL" -gt 0 ]; then
+            SCORE=$(awk -v k="$KILLED" -v t="$TOTAL" 'BEGIN { printf "%.0f", (k/t)*100 }')
+          else
+            SCORE=0
+          fi
+          if   [ "$SCORE" -ge 80 ]; then COLOR=green
+          elif [ "$SCORE" -ge 60 ]; then COLOR=yellow
+          else                           COLOR=red
+          fi
+          echo "score=${SCORE}%" >> $GITHUB_OUTPUT
+          echo "badge_color=${COLOR}" >> $GITHUB_OUTPUT
+
+      # 7. Generate mutation badge
+      - name: Generate mutation badge
+        uses: emibcn/badge-action@v2.0.2
+        with:
+          label: 'Mutants Killed'
+          status: "${{ steps.mutation.outputs.score }}"
+          color: "${{ steps.mutation.outputs.badge_color }}"
+          path: docs/mutation-badge.svg
+
+      # 8. Extract JaCoCo coverage (instruction %) — robust XML parsing
+      - name: Extract JaCoCo coverage (instruction %)
+        id: jacoco
+        run: |
+          python3 - << 'PY'
+          import os, sys, xml.etree.ElementTree as ET
+
+          report = "build/reports/jacoco/test/jacocoTestReport.xml"
+          out_path = os.environ.get("GITHUB_OUTPUT")
+
+          def write_output(key, val):
+              if out_path:
+                  with open(out_path, "a", encoding="utf-8") as f:
+                      f.write(f"{key}={val}\n")
+
+          if not os.path.exists(report):
+              write_output("coverage", "0%")
+              write_output("badge_color", "red")
+              sys.exit(0)
+
+          tree = ET.parse(report)
+          root = tree.getroot()
+
+          # Get report-level INSTRUCTION counter
+          instr = None
+          for c in root.findall("./counter"):
+              if c.attrib.get("type") == "INSTRUCTION":
+                  instr = c
+                  break
+
+          # Fallback: last INSTRUCTION anywhere if no report-level found
+          if instr is None:
+              for c in root.findall(".//counter"):
+                  if c.attrib.get("type") == "INSTRUCTION":
+                      instr = c
+              if instr is None:
+                  write_output("coverage", "0%")
+                  write_output("badge_color", "red")
+                  sys.exit(0)
+
+          missed = int(instr.attrib.get("missed", "0"))
+          covered = int(instr.attrib.get("covered", "0"))
+          total = missed + covered
+          pct = 0.0 if total == 0 else round(covered / total * 100, 1)
+
+          color = "green" if pct >= 80 else "yellow" if pct >= 60 else "red"
+          write_output("coverage", f"{pct}%")
+          write_output("badge_color", color)
+
+          print(f"INSTRUCTION summary: missed={missed} covered={covered} total={total} => {pct}% ({color})")
+          PY
+
+      # 9. Generate coverage badge
+      - name: Generate coverage badge
+        uses: emibcn/badge-action@v2.0.2
+        with:
+          label: 'Coverage'
+          status: "${{ steps.jacoco.outputs.coverage }}"
+          color: "${{ steps.jacoco.outputs.badge_color }}"
+          path: docs/coverage-badge.svg
+
+      # 10. Commit badges
+      - name: Commit badges
+        if: github.ref == 'refs/heads/main'
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email 'github-actions[bot]@users.noreply.github.com'
+          git add docs/mutation-badge.svg docs/coverage-badge.svg
+          git commit -m 'chore: update badges [skip ci]' || echo "No changes to commit"
+          git push

@@ -1,0 +1,10 @@
+pitest {
+    pitestVersion = '1.15.8'
+    targetClasses = ['com.github.rafael.devices.*']
+    targetTests = ['com.github.rafael.devices.*Test']
+    outputFormats = ['HTML', 'XML']
+    threads = 4
+    timestampedReports = false
+    testPlugin = 'junit5'
+    mutationThreshold = 80
+}

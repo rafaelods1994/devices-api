@@ -1,0 +1,33 @@
+plugins {
+	id 'java'
+	id 'org.springframework.boot' version '3.5.5'
+	id 'io.spring.dependency-management' version '1.1.7'
+	id 'info.solidsoft.pitest' version '1.15.0'
+	id 'jacoco'
+}
+
+group = 'com.github.rafael.devices'
+version = '0.0.1-SNAPSHOT'
+description = 'REST API for managing devices, built with Spring Boot 3 and Java 21'
+
+java {
+	toolchain {
+		languageVersion = JavaLanguageVersion.of(21)
+	}
+}
+
+repositories {
+	mavenCentral()
+}
+
+apply from: "$rootDir/gradle/test/integration.gradle"
+apply from: "$rootDir/gradle/dependencies.gradle"
+apply from: "$rootDir/gradle/test/mutation.gradle"
+apply from: "$rootDir/gradle/test/coverage.gradle"
+
+tasks.build {
+	dependsOn tasks.pitest
+	dependsOn tasks.test
+	dependsOn tasks.integrationTest
+	dependsOn tasks.check
+}
