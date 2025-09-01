@@ -1,1 +1,28 @@
-spring.application.name=Devices API
+spring:
+  datasource:
+    url: jdbc:postgresql://localhost:5432/devices
+    username: devices
+    password: devices
+  jpa:
+    hibernate:
+      ddl-auto: validate
+    properties:
+      hibernate:
+        format_sql: true
+    open-in-view: false
+  flyway:
+    enabled: true
+server:
+  port: 8080
+
+springdoc:
+  api-docs:
+    enabled: true
+  swagger-ui:
+    enabled: true
+logging:
+  level:
+    org.flywaydb: DEBUG
+    org.flywaydb.core.internal.command: DEBUG
+    org.flywaydb.core.internal.sqlscript: DEBUG
+    org.flywaydb.core.internal.database: DEBUG

@@ -1,0 +1,24 @@
+spring:
+  datasource:
+    url: jdbc:postgresql://devices-db:5432/devices
+    username: devices
+    password: devices
+
+  flyway:
+    url: jdbc:postgresql://devices-db:5432/devices
+    user: devices
+    password: devices
+
+  jpa:
+    hibernate:
+      ddl-auto: none
+    show-sql: true
+
+springdoc:
+  swagger-ui:
+    path: /swagger-ui.html
+    operationsSorter: method
+    tagsSorter: alpha
+
+server:
+  port: 8080
