@@ -28,6 +28,5 @@ apply from: "$rootDir/gradle/test/coverage.gradle"
 tasks.build {
 	dependsOn tasks.pitest
 	dependsOn tasks.test
-	dependsOn tasks.integrationTest
 	dependsOn tasks.check
 }

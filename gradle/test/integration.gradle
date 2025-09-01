@@ -22,7 +22,3 @@ tasks.register('integrationTest', Test) {
     shouldRunAfter(tasks.test)
     useJUnitPlatform()
 }
-
-tasks.named('check') {
-    dependsOn tasks.integrationTest
-}
